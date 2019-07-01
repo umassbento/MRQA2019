@@ -171,6 +171,39 @@ if __name__ == "__main__":
 
         makedir_and_clear(opt.predict)
 
+        logging.info('loading test data...')
+        test_datasets = []
+        for test_jsonl_file in opt.test:
+            test_dataset = load_data(test_jsonl_file, 'test')
+            test_datasets.append(test_dataset)
+
+        wp_tokenizer = BertTokenizer.from_pretrained(opt.bert_dir, do_lower_case=opt.do_lower_case)
+
+        test_datasets_instances = []
+        for test_dataset in test_datasets:
+            test_dataset_instances = prepare_instance(test_dataset, opt, wp_tokenizer, 'test')
+            test_datasets_instances.append(test_dataset_instances)
+
+        if opt.gpu >= 0 and torch.cuda.is_available():
+            device = torch.device("cuda", opt.gpu)
+        else:
+            device = torch.device("cpu")
+        logging.info("use device {}".format(device))
+
+        logging.info("loading model from {} ...".format(os.path.join(opt.save, 'model.pth')))
+        model = BertForQuestionAnswering.from_pretrained(opt.bert_dir)
+        model.load_state_dict(torch.load(os.path.join(opt.save, 'model.pth')))
+        model.to(device)
+
+        test_data_loaders = []
+        for test_dataset_instances in test_datasets_instances:
+            test_loader = DataLoader(MyDataset(test_dataset_instances['dataset_instances']), opt.batch_size, shuffle=False, collate_fn=my_collate)
+            test_data_loaders.append(test_loader)
+
+        logging.info("start test ...")
+        _, _, all_pred_answers = evaluate(test_datasets, test_datasets_instances, test_data_loaders, model, 'test')
+        dump_results(test_datasets, all_pred_answers, opt.predict)
+
     logging.info("end ......")
 
 
