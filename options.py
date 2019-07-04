@@ -31,7 +31,9 @@ parser.add_argument('-l2', type=float, default=1e-8, help="l2 regularization")
 parser.add_argument('-iter', type=int, default=100, help="max iteration")
 parser.add_argument('-gpu', type=int, default=-1, help="if gpu<0, use cpu, otherwise use the specific gpu")
 parser.add_argument('-patience', type=int, default=20, help="if the result doesn't rise after several iteration, training will stop")
-
+parser.add_argument('-optim', type=str, default="adam", choices=["adam","bert_adam"])
+parser.add_argument("-warmup_proportion", default=0.1, type=float)
+parser.add_argument('-gradient_accumulation_steps', type=int, default=1)
 
 opt = parser.parse_args()
 

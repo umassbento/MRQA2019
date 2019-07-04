@@ -114,8 +114,20 @@ def prepare_instance(dataset, opt, tokenizer, data_type):
 
             if data_type != 'test':
                 # we use the first answer to train the model
-                detected_answer = qa.detected_answers[0]
-                token_span = detected_answer['token_spans'][0] # why is token_spans a list? we use the first span.
+                # detected_answer = qa.detected_answers[0]
+                # token_span = detected_answer['token_spans'][0] # why is token_spans a list? we use the first span.
+                # start_position, end_position = token_span[0], token_span[1]
+
+                # we use the max-span answer to train the model
+                max_span = -1
+                max_span_idx = -1
+                for detected_answer_idx, detected_answer in enumerate(qa.detected_answers):
+                    token_span = detected_answer['token_spans'][0]
+                    if token_span[1]-token_span[0] > max_span:
+                        max_span = token_span[1]-token_span[0]
+                        max_span_idx = detected_answer_idx
+                detected_answer = qa.detected_answers[max_span_idx]
+                token_span = detected_answer['token_spans'][0]
                 start_position, end_position = token_span[0], token_span[1]
 
                 wp_start_position = orig_to_wp_index[start_position]
@@ -209,7 +221,7 @@ def evaluate(datasets, datasets_instances, data_loaders, model, data_type):
             instance_start = 0
             for i in range(num_iter):
                 input_ids, mask, segments, start_position, end_position = next(data_iter)
-                start_logits, end_logits = model.forward(input_ids, mask, segments)
+                start_logits, end_logits = model.forward(input_ids, segments, mask)
 
                 actual_batch_size = input_ids.size(0)
                 for batch_idx in range(actual_batch_size):

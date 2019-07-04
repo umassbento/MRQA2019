@@ -6,7 +6,7 @@ import torch
 from options import opt
 from my_utils import makedir_and_clear, MyDataset
 from preprocess import load_data, prepare_instance, my_collate, evaluate, dump_results
-from pytorch_pretrained_bert import BertTokenizer
+from pytorch_pretrained_bert import BertTokenizer, BertAdam
 from models import BertForQuestionAnswering
 import torch.optim as optim
 from torch.utils.data import DataLoader
@@ -77,7 +77,25 @@ if __name__ == "__main__":
         model = BertForQuestionAnswering.from_pretrained(opt.bert_dir)
         model.to(device)
 
-        optimizer = optim.Adam(model.parameters(), lr=opt.lr, weight_decay=opt.l2)
+        if opt.optim == 'adam':
+            optimizer = optim.Adam(model.parameters(), lr=opt.lr, weight_decay=opt.l2)
+        elif opt.optim == "bert_adam":
+            param_optimizer = list(model.named_parameters())
+            param_optimizer = [n for n in param_optimizer if 'pooler' not in n[0]]
+            no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
+            optimizer_grouped_parameters = [
+                {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)],
+                 'weight_decay': 0.01},
+                {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
+            ]
+            num_train_optimization_steps = int(
+                len(train_dataset_instances['dataset_instances']) / opt.batch_size / opt.gradient_accumulation_steps) * opt.iter
+            optimizer = BertAdam(optimizer_grouped_parameters,
+                                 lr=opt.lr,
+                                 warmup=opt.warmup_proportion,
+                                 t_total=num_train_optimization_steps)
+        else:
+            raise RuntimeError("unsupported optimizer {}".format(opt.optim))
 
         train_data_loaders = []
         for train_dataset_instances in train_datasets_instances:
@@ -120,7 +138,7 @@ if __name__ == "__main__":
                 for i in range(num_iter):
                     input_ids, mask, segments, start_position, end_position = next(train_iter)
 
-                    start_logits, end_logits = model.forward(input_ids, mask, segments)
+                    start_logits, end_logits = model.forward(input_ids, segments, mask)
 
                     loss, total_this_batch, correct_this_batch = model.loss(start_logits, end_logits, start_position, end_position)
 
