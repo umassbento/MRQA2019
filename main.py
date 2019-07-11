@@ -78,7 +78,11 @@ if __name__ == "__main__":
         model.to(device)
 
         if opt.optim == 'adam':
-            optimizer = optim.Adam(model.parameters(), lr=opt.lr, weight_decay=opt.l2)
+            optimizers = []
+            for train_idx, train_dataset in enumerate(train_datasets):
+                optimizer = optim.Adam(model.parameters(), lr=opt.lr, weight_decay=opt.l2)
+                optimizers.append(optimizer)
+
         elif opt.optim == "bert_adam":
             param_optimizer = list(model.named_parameters())
             param_optimizer = [n for n in param_optimizer if 'pooler' not in n[0]]
@@ -88,12 +92,21 @@ if __name__ == "__main__":
                  'weight_decay': 0.01},
                 {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
             ]
-            num_train_optimization_steps = int(
-                len(train_dataset_instances['dataset_instances']) / opt.batch_size / opt.gradient_accumulation_steps) * opt.iter
-            optimizer = BertAdam(optimizer_grouped_parameters,
-                                 lr=opt.lr,
-                                 warmup=opt.warmup_proportion,
-                                 t_total=num_train_optimization_steps)
+
+            optimizers = []
+            for train_idx, train_dataset in enumerate(train_datasets):
+                train_dataset_instances = train_datasets_instances[train_idx]
+                # +1 is because some training instances are not enough to consist of a batch
+                num_train_optimization_steps = int(len(train_dataset_instances['dataset_instances']) / opt.batch_size + 1) * opt.iter
+
+                optimizer = BertAdam(optimizer_grouped_parameters,
+                                     lr=opt.lr,
+                                     warmup=opt.warmup_proportion,
+                                     t_total=num_train_optimization_steps)
+                optimizers.append(optimizer)
+
+                logging.info("%s, Warmup steps = %d, Num steps = %d", train_dataset['name'],
+                             int(num_train_optimization_steps*opt.warmup_proportion), num_train_optimization_steps)
         else:
             raise RuntimeError("unsupported optimizer {}".format(opt.optim))
 
@@ -145,7 +158,7 @@ if __name__ == "__main__":
                     sum_loss += loss.item()
 
                     loss.backward()
-                    optimizer.step()
+                    optimizers[train_idx].step()
                     model.zero_grad()
 
                     total += total_this_batch

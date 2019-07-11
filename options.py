@@ -33,7 +33,7 @@ parser.add_argument('-gpu', type=int, default=-1, help="if gpu<0, use cpu, other
 parser.add_argument('-patience', type=int, default=20, help="if the result doesn't rise after several iteration, training will stop")
 parser.add_argument('-optim', type=str, default="adam", choices=["adam","bert_adam"])
 parser.add_argument("-warmup_proportion", default=0.1, type=float)
-parser.add_argument('-gradient_accumulation_steps', type=int, default=1)
+
 
 opt = parser.parse_args()
 
